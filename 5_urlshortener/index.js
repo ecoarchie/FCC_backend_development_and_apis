@@ -40,7 +40,7 @@ app.get('/api/hello', function (req, res) {
 app.post('/api/shorturl', [
   async function (req, res, next) {
     // validate url
-    await dns.lookup(new URL(req.body.url).host, function (err, address, family) {
+    dns.lookup(new URL(req.body.url).host, function (err, address, family) {
       if (err) {
         res.json({ error: 'invalid url' });
         return;
@@ -49,14 +49,18 @@ app.post('/api/shorturl', [
     });
   },
   async function (req, res) {
+    const regex = /^https?:\/\/[\w\W]+/;
+
+    console.log(req.body.url);
+    const urlMatched = req.body.url.match(regex)[0];
     const urlToFind = await Url.findOne({
-      original_url: req.body.url,
+      original_url: urlMatched,
     });
     if (!urlToFind) {
       let lastAddedUrl = await Url.find().sort({ short_url: -1 }).limit(1);
       let lastIndex = lastAddedUrl[0] ? lastAddedUrl[0].short_url : 0;
       const newUrl = await Url.create({
-        original_url: req.body.url,
+        original_url: urlMatched,
         short_url: lastIndex + 1,
       });
       res.json({ original_url: newUrl.original_url, short_url: newUrl.short_url });
@@ -67,14 +71,12 @@ app.post('/api/shorturl', [
 ]);
 
 app.get('/api/shorturl/:surl', async function (req, res) {
-  console.log(req.params.surl);
   const urlObj = await Url.findOne({ short_url: parseInt(req.params.surl) });
-  console.log(urlObj);
 
   if (!urlObj) {
     res.json({ error: 'No short URL found for the given input' });
   } else {
-    res.redirect(urlObj.original_url);
+    res.redirect(302, urlObj.original_url);
   }
 });
 
