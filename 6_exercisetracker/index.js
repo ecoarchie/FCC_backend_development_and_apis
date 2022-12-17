@@ -5,6 +5,8 @@ require('dotenv').config();
 const bodyParser = require('body-parser');
 const { connectToDb, getDb } = require('./db');
 const { ObjectId } = require('mongodb');
+const { query } = require('express');
+const e = require('express');
 
 app.use(cors());
 app.use(express.static('public'));
@@ -37,12 +39,8 @@ app.get('/', (req, res) => {
 // Insert user
 // @route   POST  /api/users
 app.post('/api/users', async (req, res) => {
-  await db.collection('users').insertOne(req.body);
-  const foundUserArr = await db
-    .collection('users')
-    .find({ username: req.body.username })
-    .toArray();
-  res.json(foundUserArr[0]);
+  const result = await db.collection('users').insertOne({ username: req.body.username });
+  res.json({ username: req.body.username, _id: result.insertedId });
 });
 
 // Get all users
@@ -71,22 +69,24 @@ app.post('/api/users/:_id/exercises', async (req, res, next) => {
     ? new Date(req.body.date).toDateString()
     : new Date(Date.now()).toDateString();
 
-  // insert exercise
-  await db.collection('exercises').insertOne({
-    user: user._id,
+  const exercise = {
     description: req.body.description,
-    duration: req.body.duration,
+    duration: Number(req.body.duration),
     date: date,
-  });
-
-  const resObj = {
-    usename: user.username,
-    description: req.body.description,
-    duration: req.body.duration,
-    date: date,
-    _id: user._id,
   };
-  res.json(resObj);
+  const exerciseToInsert = {
+    user: user._id,
+    ...exercise,
+  };
+
+  const exerciseToReturn = {
+    ...user,
+    ...exercise,
+  };
+  // insert exercise
+  const insertRes = await db.collection('exercises').insertOne({ ...exerciseToInsert });
+
+  res.json(exerciseToReturn);
 });
 
 // Get logs of a certain user
@@ -105,14 +105,25 @@ app.get('/api/users/:_id/logs', async (req, res) => {
   }
 
   // get user's exercises
-  exercises = await db
+  // const { from, to, limit } = req.query.params || null;
+  console.log(req.query.from);
+  console.log(new Date(Date.parse(req.query.to)));
+  let exercises = await db
     .collection('exercises')
-    .find({ user: user._id })
+    .find({
+      user: user._id,
+    })
+    .limit(+req.query.limit || 0)
     .project({ _id: 0, description: 1, duration: 1, date: 1 })
     .toArray();
-  // console.log(await exercises.length);
-  user['log'] = exercises;
+
+  exercises = exercises.filter(
+    (e) =>
+      new Date(e.date) >= new Date(req.query.from) && new Date(e.date) <= new Date(req.query.to)
+  );
+
   user['count'] = exercises.length;
+  user['log'] = exercises;
 
   res.json(user);
 });
