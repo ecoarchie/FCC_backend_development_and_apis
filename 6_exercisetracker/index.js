@@ -40,7 +40,7 @@ app.get('/', (req, res) => {
 // @route   POST  /api/users
 app.post('/api/users', async (req, res) => {
   const result = await db.collection('users').insertOne({ username: req.body.username });
-  res.json({ username: req.body.username, _id: result.insertedId });
+  res.json({ username: req.body.username, _id: result.insertedId.toString() });
 });
 
 // Get all users
@@ -56,7 +56,6 @@ app.get('/api/users', async (req, res, next) => {
 // Insert user's exercise
 // @route   POST  /api/users/:_id/exercises
 app.post('/api/users/:_id/exercises', async (req, res, next) => {
-  const filter = { _id: req.params._id };
   // check if user exists
   let user;
   if (ObjectId.isValid(req.params._id)) {
@@ -71,7 +70,7 @@ app.post('/api/users/:_id/exercises', async (req, res, next) => {
 
   const exercise = {
     description: req.body.description,
-    duration: Number(req.body.duration),
+    duration: parseInt(req.body.duration),
     date: date,
   };
   const exerciseToInsert = {
@@ -105,25 +104,31 @@ app.get('/api/users/:_id/logs', async (req, res) => {
   }
 
   // get user's exercises
-  // const { from, to, limit } = req.query.params || null;
-  console.log(req.query.from);
-  console.log(new Date(Date.parse(req.query.to)));
   let exercises = await db
     .collection('exercises')
     .find({
       user: user._id,
     })
-    .limit(+req.query.limit || 0)
     .project({ _id: 0, description: 1, duration: 1, date: 1 })
     .toArray();
 
-  exercises = exercises.filter(
-    (e) =>
-      new Date(e.date) >= new Date(req.query.from) && new Date(e.date) <= new Date(req.query.to)
-  );
-
+  if (req.query.from || req.query.to) {
+    if (req.query.from) {
+      exercises = exercises.filter((e) => new Date(e.date) >= new Date(req.query.from));
+      user['from'] = new Date(req.query.from).toDateString();
+    }
+    if (req.query.to) {
+      exercises = exercises.filter((e) => new Date(e.date) <= new Date(req.query.to));
+      user['to'] = new Date(req.query.to).toDateString();
+    }
+  }
+  if (req.query.limit) {
+    exercises = exercises.slice(0, req.query.limit);
+  }
   user['count'] = exercises.length;
   user['log'] = exercises;
+  console.log(user.log[0].date);
+  console.log(typeof user.log[0].date);
 
-  res.json(user);
+  res.send(user);
 });
