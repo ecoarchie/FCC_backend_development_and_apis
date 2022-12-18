@@ -5,8 +5,6 @@ require('dotenv').config();
 const bodyParser = require('body-parser');
 const { connectToDb, getDb } = require('./db');
 const { ObjectId } = require('mongodb');
-const { query } = require('express');
-const e = require('express');
 
 app.use(cors());
 app.use(express.static('public'));
@@ -127,8 +125,6 @@ app.get('/api/users/:_id/logs', async (req, res) => {
   }
   user['count'] = exercises.length;
   user['log'] = exercises;
-  console.log(user.log[0].date);
-  console.log(typeof user.log[0].date);
 
   res.send(user);
 });
